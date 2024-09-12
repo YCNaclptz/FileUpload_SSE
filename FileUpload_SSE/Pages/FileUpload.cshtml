@@ -1,0 +1,65 @@
+﻿@page
+@model FileUpload_SSE.Pages.FileUploadModel
+
+<form id="uploadForm" method="post" enctype="multipart/form-data">
+    <div class="container">
+        <input type="file" asp-for="Upload" />
+        <input type="submit" value="上傳" />
+    </div>
+    <div class="outer">
+        <div class="inner">
+            <div class="bg"></div>
+        </div>
+    </div>
+</form>
+<div id="status"></div>
+
+<script>
+    document.getElementById('uploadForm')
+        .addEventListener('submit', async function (event) {
+            event.preventDefault();
+
+            const formData = new FormData(this);
+            const response = await fetch(this.action, {
+                method: 'POST',
+                body: formData
+            });
+            const bar = document.querySelector('progress');
+            const outer = document.querySelector('.outer');
+            const inner = document.querySelector('.inner');
+
+            const reader = response.body.pipeThrough(new TextDecoderStream()).getReader();
+
+            let buffer = '';
+            while (true) {
+                const { value, done } = await reader.read();
+                if (done) break;
+
+                buffer += value;
+                let boundary = buffer.indexOf("data: ");
+                while (boundary !== -1) {
+                    const nextBoundary = buffer.indexOf("data: ", boundary + 1);
+                    const dataString = buffer.slice(boundary + 6, nextBoundary !== -1 ? nextBoundary : buffer.length);
+
+                    try {
+                        const jsonData = JSON.parse(dataString);
+                        if (jsonData.progress > 0) {
+                            if (outer.style.display === '') {
+                                outer.style.display = 'block';
+                            }
+                        }
+                        inner.style.width = `${jsonData.progress}%`;
+                    } catch (e) {
+                        console.error("Failed to parse JSON: ", e);
+                    }
+
+                    if (nextBoundary === -1) {
+                        buffer = buffer.slice(boundary);
+                        break;
+                    }
+                    buffer = buffer.slice(nextBoundary);
+                    boundary = buffer.indexOf("data: ");
+                }
+            }
+        });
+</script>
